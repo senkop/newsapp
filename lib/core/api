@@ -1,0 +1,87 @@
+import 'package:dio/dio.dart';
+import '../core/error/exceptions.dart';
+
+abstract class ApiConsumer {
+  Future<dynamic> get(String path, {Map<String, dynamic>? queryParameters});
+  Future<dynamic> post(String path, {Map<String, dynamic>? body, Map<String, dynamic>? queryParameters});
+  Future<dynamic> put(String path, {Map<String, dynamic>? body, Map<String, dynamic>? queryParameters});
+  Future<dynamic> delete(String path, {Map<String, dynamic>? body, Map<String, dynamic>? queryParameters});
+}
+
+class DioConsumer implements ApiConsumer {
+  final Dio client;
+
+  DioConsumer({required this.client}) {
+    client.options
+      ..connectTimeout = const Duration(seconds: 30)
+      ..receiveTimeout = const Duration(seconds: 30);
+
+    client.interceptors.add(LogInterceptor(
+      error: true,
+      request: true,
+      requestBody: true,
+      requestHeader: true,
+      responseBody: true,
+      responseHeader: true,
+    ));
+  }
+
+  @override
+  Future get(String path, {Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await client.get(path, queryParameters: queryParameters);
+      return response.data;
+    } on DioException catch (error) {
+      _handleDioError(error);
+    }
+  }
+
+  @override
+  Future post(String path, {Map<String, dynamic>? body, Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await client.post(path, data: body, queryParameters: queryParameters);
+      return response.data;
+    } on DioException catch (error) {
+      _handleDioError(error);
+    }
+  }
+
+  @override
+  Future put(String path, {Map<String, dynamic>? body, Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await client.put(path, data: body, queryParameters: queryParameters);
+      return response.data;
+    } on DioException catch (error) {
+      _handleDioError(error);
+    }
+  }
+
+  @override
+  Future delete(String path, {Map<String, dynamic>? body, Map<String, dynamic>? queryParameters}) async {
+    try {
+      final response = await client.delete(path, data: body, queryParameters: queryParameters);
+      return response.data;
+    } on DioException catch (error) {
+      _handleDioError(error);
+    }
+  }
+
+  void _handleDioError(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        throw ServerException('Connection timeout with API server');
+      case DioExceptionType.badCertificate:
+        throw ServerException('Bad certificate');
+      case DioExceptionType.badResponse:
+        throw ServerException('Received invalid status code: ${error.response?.statusCode}');
+      case DioExceptionType.cancel:
+        throw ServerException('Request to API server was cancelled');
+      case DioExceptionType.connectionError:
+        throw ServerException('No internet connection');
+      case DioExceptionType.unknown:
+        throw ServerException('Unexpected error occurred');
+    }
+  }
+}
